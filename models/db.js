@@ -5,7 +5,7 @@ import mysql from 'mysql2/promise.js';
       user: process.env.USER,
       password: "", 
       database: process.env.DATABASE,
-      port:3306
+      
     });
     
     export default pool;
