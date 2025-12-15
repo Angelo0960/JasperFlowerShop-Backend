@@ -1,27 +1,24 @@
 import pool from "./db.js"
 
 export default class OrderModel {
-    // Generate unique order code (Kept the user's uploaded version which includes a transaction)
     static async generateOrderCode() {
     try {
-        // Get the maximum ID from orders table (not the code, but the auto-increment ID)
+        
         const [maxIdResult] = await pool.query("SELECT MAX(id) as max_id FROM orders");
         const maxId = maxIdResult[0]?.max_id || 0;
-        
-        // Use the ID + 1 for the order code
+       
         const nextNumber = maxId + 1;
         return `ORD-${String(nextNumber).padStart(3, "0")}`;
         
     } catch (error) {
         console.error("❌ Error generating order code:", error);
-        // Last resort: count total orders
+        
         const [countResult] = await pool.query("SELECT COUNT(*) as total FROM orders");
         const totalOrders = countResult[0]?.total || 0;
         return `ORD-${String(totalOrders + 1).padStart(3, "0")}`;
     }
 }
     
-    // Get all orders with filtering - UPDATED to include new fields
     static async getOrders(filters = {}) {
         let query = `SELECT * FROM orders WHERE 1=1`;
         const params = [];
@@ -81,7 +78,6 @@ export default class OrderModel {
         }));
     }
 
-    // Get order by ID - UPDATED to include new fields
     static async getOrderById(id) {
         const [rows] = await pool.query("SELECT * FROM orders WHERE id = ?", [id]);
         
@@ -104,6 +100,115 @@ export default class OrderModel {
             notes: row.notes,
             created_at: row.created_at,
             items: typeof row.items === 'string' ? JSON.parse(row.items) : row.items
+        };
+    }
+
+        static async createOrder(orderData) {
+        const connection = await pool.getConnection();
+        
+        try {
+            await connection.beginTransaction();
+            
+    
+            const order_code = await this.generateOrderCode();
+            
+
+            const items_count = Array.isArray(orderData.items) ? 
+                orderData.items.reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0) : 1;
+            
+
+            const [result] = await connection.query(
+                `INSERT INTO orders (
+                    order_code,
+                    customer_name,
+                    staff_name,
+                    payment_method,
+                    items,
+                    items_count,
+                    total_amount,
+                    tax_amount,
+                    grand_total,
+                    cash_received,
+                    change_amount,
+                    notes,
+                    status,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
+                [
+                    order_code,
+                    orderData.customer_name,
+                    orderData.staff_name || '',
+                    orderData.payment_method || 'cash',
+                    JSON.stringify(orderData.items),
+                    items_count,
+                    orderData.total_amount || 0,
+                    orderData.tax_amount || 0,
+                    orderData.grand_total || orderData.total_amount || 0,
+                    orderData.cash_received || 0,
+                    orderData.change_amount || 0,
+                    orderData.notes || ''
+                ]
+            );
+
+            await connection.commit();
+            
+            return {
+                id: result.insertId,
+                order_code: order_code,
+                customer_name: orderData.customer_name,
+                staff_name: orderData.staff_name || '',
+                payment_method: orderData.payment_method || 'cash',
+                items: orderData.items,
+                items_count: items_count,
+                total_amount: orderData.total_amount || 0,
+                tax_amount: orderData.tax_amount || 0,
+                grand_total: orderData.grand_total || orderData.total_amount || 0,
+                cash_received: orderData.cash_received || 0,
+                change_amount: orderData.change_amount || 0,
+                notes: orderData.notes || '',
+                status: 'pending',
+                created_at: new Date()
+            };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error creating order:', error);
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+    
+    static async getOrderSales(orderId) {
+        const [sales] = await pool.query(
+            "SELECT * FROM sales WHERE order_id = ? ORDER BY sale_date DESC, sale_time DESC",
+            [orderId]
+        );
+        
+        return sales.map(sale => ({
+            ...sale,
+            items: typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items
+        }));
+    }
+
+    static async getTodayOrderStats() {
+        const [statsResult] = await pool.query(`
+            SELECT 
+                COUNT(*) as total_orders,
+                SUM(CASE WHEN status = 'completed' THEN total_amount ELSE 0 END) as total_revenue
+            FROM orders
+            WHERE DATE(created_at) = CURDATE()
+        `);
+        
+        const [itemsResult] = await pool.query(`
+            SELECT SUM(items_count) as total_items
+            FROM sales
+            WHERE sale_date = CURDATE()
+        `);
+        
+        return {
+            totalRevenue: statsResult[0]?.total_revenue || 0,
+            totalOrders: statsResult[0]?.total_orders || 0,
+            itemsSold: itemsResult[0]?.total_items || 0
         };
     }
 }
