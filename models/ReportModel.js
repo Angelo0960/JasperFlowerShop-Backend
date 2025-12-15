@@ -161,4 +161,88 @@ static async generateSalesReport(period = 'daily', specificDate = null) {
             generatedAt: new Date().toISOString()
         };
     }
+
+     // Get top products
+    static async getTopProducts(limit = 10, period = 'monthly') {
+        try {
+            let dateCondition = '';
+            
+            switch(period) {
+                case 'daily':
+                    dateCondition = "s.sale_date = CURDATE()";
+                    break;
+                case 'weekly':
+                    dateCondition = "YEARWEEK(s.sale_date) = YEARWEEK(CURDATE())";
+                    break;
+                case 'monthly':
+                    dateCondition = "MONTH(s.sale_date) = MONTH(CURDATE()) AND YEAR(s.sale_date) = YEAR(CURDATE())";
+                    break;
+                default:
+                    dateCondition = "1=1";
+            }
+            
+            const [result] = await pool.query(`
+                SELECT 
+                    p.name as product_name,
+                    p.product_code,
+                    SUM(
+                        CASE 
+                            WHEN JSON_EXTRACT(s.items, '$[0].quantity') IS NOT NULL 
+                            THEN JSON_EXTRACT(s.items, '$[0].quantity')
+                            ELSE 1
+                        END
+                    ) as total_quantity,
+                    SUM(s.total_amount) as total_revenue
+                FROM sales s
+                JOIN products p ON JSON_EXTRACT(s.items, '$[0].product_id') = p.id
+                WHERE ${dateCondition}
+                GROUP BY p.id, p.name, p.product_code
+                ORDER BY total_quantity DESC
+                LIMIT ?
+            `, [limit]);
+            
+            return result;
+        } catch (error) {
+            console.error("Error getting top products:", error);
+            return [];
+        }
+    }
+
+    // Check if reports table exists and create if not
+    static async ensureReportsTable() {
+        try {
+            const [tableCheck] = await pool.query(`
+                SELECT COUNT(*) as table_exists 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'reports'
+            `);
+            
+            if (tableCheck[0].table_exists === 0) {
+                console.log("📊 Creating reports table...");
+                
+                await pool.query(`
+                    CREATE TABLE reports (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        report_code VARCHAR(50) UNIQUE NOT NULL,
+                        report_type VARCHAR(20) NOT NULL,
+                        report_name VARCHAR(255) NOT NULL,
+                        report_data JSON,
+                        summary_data JSON,
+                        total_sales DECIMAL(10, 2) DEFAULT 0,
+                        total_items INT DEFAULT 0,
+                        generated_by VARCHAR(100) DEFAULT 'system',
+                        generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_report_type (report_type),
+                        INDEX idx_generated_at (generated_at)
+                    )
+                `);
+                
+                console.log("✅ Reports table created successfully");
+            }
+        } catch (error) {
+            console.error("❌ Error ensuring reports table exists:", error);
+        }
+    }
+    
 }
