@@ -239,3 +239,55 @@ export const getTodayOrderStats = async (req, res) => {
     });
   }
 };
+export const debugOrders = async (req, res) => {
+  try {
+    console.log("🐛 DEBUG: Checking database orders");
+    
+    
+    const orders = await OrderModel.getOrders({});
+    
+    console.log(`📋 Total orders in database: ${orders.length}`);
+    
+    
+    const statusCount = {};
+    const orderDetails = [];
+    
+    orders.forEach(order => {
+      statusCount[order.status] = (statusCount[order.status] || 0) + 1;
+      orderDetails.push({
+        id: order.id,
+        code: order.order_code,
+        status: order.status,
+        customer: order.customer_name,
+        staff: order.staff_name,
+        payment_method: order.payment_method,
+        total: order.total_amount,
+        tax: order.tax_amount,
+        grand_total: order.grand_total,
+        cash_received: order.cash_received,
+        change: order.change_amount,
+        items: order.items_count,
+        created: order.created_at
+      });
+    });
+    
+    console.log("📊 Orders by status:", statusCount);
+    console.log("📋 Order details:", orderDetails);
+    
+    res.json({
+      success: true,
+      total_orders: orders.length,
+      orders_by_status: statusCount,
+      all_orders: orderDetails,
+      message: `Database has ${orders.length} orders`
+    });
+    
+  } catch (error) {
+    console.error("❌ Debug error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: "Failed to get debug information"
+    });
+  }
+};
