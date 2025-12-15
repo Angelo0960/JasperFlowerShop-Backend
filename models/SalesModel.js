@@ -290,4 +290,100 @@ export default class SalesModel {
   static convertToExcel(data) {
     return this.convertToCSV(data);
   }
+
+  
+    static async saveToReports(salesData, reportType = 'daily', reportName = 'Sales Report') {
+        const connection = await pool.getConnection();
+        
+        try {
+            await connection.beginTransaction();
+            
+            
+            const report_code = `REP-${Date.now()}`;
+            
+            
+            const total_sales = salesData.reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0);
+            const total_items = salesData.reduce((sum, sale) => sum + (parseInt(sale.items_count) || 0), 0);
+            
+            
+            const [result] = await connection.query(
+                `INSERT INTO reports (
+                    report_code,
+                    report_type,
+                    report_name,
+                    report_data,
+                    summary_data,
+                    total_sales,
+                    total_items,
+                    generated_by,
+                    generated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'system', NOW())`,
+                [
+                    report_code,
+                    reportType,
+                    reportName,
+                    JSON.stringify(salesData),
+                    JSON.stringify({
+                        total_transactions: salesData.length,
+                        total_sales: total_sales,
+                        total_items: total_items,
+                        average_sale: salesData.length > 0 ? total_sales / salesData.length : 0
+                    }),
+                    total_sales,
+                    total_items
+                ]
+            );
+            
+            await connection.commit();
+            
+            return {
+                id: result.insertId,
+                report_code,
+                report_type: reportType,
+                report_name: reportName,
+                total_sales,
+                total_items,
+                generated_at: new Date()
+            };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error saving to reports:', error);
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
+    
+    static async getReports(filters = {}) {
+        let query = `SELECT * FROM reports WHERE 1=1`;
+        const params = [];
+        
+        if (filters.report_type) {
+            query += ` AND report_type = ?`;
+            params.push(filters.report_type);
+        }
+        
+        if (filters.start_date) {
+            query += ` AND DATE(generated_at) >= ?`;
+            params.push(filters.start_date);
+        }
+        
+        if (filters.end_date) {
+            query += ` AND DATE(generated_at) <= ?`;
+            params.push(filters.end_date);
+        }
+        
+        query += ` ORDER BY generated_at DESC`;
+        
+        const [rows] = await pool.query(query, params);
+        
+        return rows.map(report => ({
+            ...report,
+            report_data: typeof report.report_data === 'string' ? JSON.parse(report.report_data) : report.report_data,
+            summary_data: typeof report.summary_data === 'string' ? JSON.parse(report.summary_data) : report.summary_data
+        }));
+    }
+
+  
 }
