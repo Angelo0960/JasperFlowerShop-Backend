@@ -275,3 +275,71 @@ export const generateCustomReport = async (req, res) => {
     });
   }
 };
+
+export const exportReportAsCSV = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await ReportModel.ensureReportsTable();
+    
+    const [reports] = await pool.query(
+      "SELECT * FROM reports WHERE id = ?",
+      [id]
+    );
+    
+    if (reports.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Report not found"
+      });
+    }
+    
+    const report = reports[0];
+    const reportData = report.report_data ? JSON.parse(report.report_data) : [];
+    
+    if (reportData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No data to export"
+      });
+    }
+    
+    const headers = Object.keys(reportData[0]);
+    
+    const csvRows = [];
+    
+    csvRows.push(headers.join(','));
+    
+    reportData.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header];
+        
+        if (typeof value === 'object') {
+          return JSON.stringify(value).replace(/"/g, '""');
+        }
+        
+        if (typeof value === 'string' && value.includes(',')) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        
+        return value;
+      });
+      
+      csvRows.push(values.join(','));
+    });
+    
+    const csvContent = csvRows.join('\n');
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=report_${report.report_code}.csv`);
+    
+    res.send(csvContent);
+    
+  } catch (error) {
+    console.error("Error exporting report as CSV:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to export report"
+    });
+  }
+};
