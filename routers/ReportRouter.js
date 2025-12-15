@@ -9,3 +9,7 @@ import {
 } from '../controllers/ReportController.js';
 
 const router = express.Router();
+
+router.get('/sales', generateSalesReport);
+router.post('/custom', generateCustomReport);
+router.get('/', getSavedReports);
