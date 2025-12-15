@@ -11,5 +11,8 @@ const router = express.Router();
 
 router.get("/", listSales);             
 router.get("/export", exportSales);     
-
 router.post("/", recordSale);   
+router.get("/stats", getSalesStats);
+router.get("/test", testSalesEndpoint); 
+
+export default router;
