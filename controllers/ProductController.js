@@ -43,3 +43,70 @@ export const getProductById = async (req, res) => {
     });
   }
 };
+export const createProduct = async (req, res) => {
+  try {
+    const productData = req.body;
+    
+    
+    if (!productData.name || !productData.unit_price) {
+      return res.status(400).json({
+        success: false,
+        message: "Name and unit price are required"
+      });
+    }
+    
+    const newProduct = await ProductModel.createProduct(productData);
+    
+    res.status(201).json({
+      success: true,
+      data: newProduct,
+      message: "Product created successfully"
+    });
+  } catch (err) {
+    console.error("Error in createProduct:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to create product" 
+    });
+  }
+};
+
+
+export const updateProduct = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const productData = req.body;
+    
+    
+    if (!productData.name || !productData.unit_price) {
+      return res.status(400).json({
+        success: false,
+        message: "Name and unit price are required"
+      });
+    }
+    
+    const updated = await ProductModel.updateProduct(productId, productData);
+    
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+    
+    
+    const updatedProduct = await ProductModel.getProductById(productId);
+    
+    res.json({
+      success: true,
+      data: updatedProduct,
+      message: "Product updated successfully"
+    });
+  } catch (err) {
+    console.error("Error in updateProduct:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to update product" 
+    });
+  }
+};
