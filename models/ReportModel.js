@@ -162,7 +162,6 @@ static async generateSalesReport(period = 'daily', specificDate = null) {
         };
     }
 
-     // Get top products
     static async getTopProducts(limit = 10, period = 'monthly') {
         try {
             let dateCondition = '';
@@ -208,7 +207,7 @@ static async generateSalesReport(period = 'daily', specificDate = null) {
         }
     }
 
-    // Check if reports table exists and create if not
+
     static async ensureReportsTable() {
         try {
             const [tableCheck] = await pool.query(`
@@ -219,7 +218,7 @@ static async generateSalesReport(period = 'daily', specificDate = null) {
             `);
             
             if (tableCheck[0].table_exists === 0) {
-                console.log("📊 Creating reports table...");
+                console.log(" Creating reports table...");
                 
                 await pool.query(`
                     CREATE TABLE reports (
@@ -238,11 +237,11 @@ static async generateSalesReport(period = 'daily', specificDate = null) {
                     )
                 `);
                 
-                console.log("✅ Reports table created successfully");
+                console.log(" Reports table created successfully");
             }
         } catch (error) {
-            console.error("❌ Error ensuring reports table exists:", error);
+            console.error(" Error ensuring reports table exists:", error);
         }
     }
-    
+
 }

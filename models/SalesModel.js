@@ -43,21 +43,18 @@ export default class SalesModel {
         }));
     }
 
-    // Record a sale
     static async recordSale({ customer_name, items, total_amount, payment_method = 'cash' }) {
         const connection = await pool.getConnection();
         
         try {
             await connection.beginTransaction();
             
-            // Generate sale code
+            
             const sale_code = await this.generateSaleCode();
             
-            // Calculate items count
             const items_count = Array.isArray(items) ? 
                 items.reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0) : 1;
             
-            // Insert sale
             const [result] = await connection.query(
                 `INSERT INTO sales (
                     sale_code, 
@@ -79,9 +76,7 @@ export default class SalesModel {
                     payment_method
                 ]
             );
-            
-            // REMOVED: Product stock update code since stock tracking is removed
-            // Note: The products table no longer has stock_quantity column
+        
             
             await connection.commit();
             
@@ -104,7 +99,6 @@ export default class SalesModel {
         }
     }
 
-        // Generate sale code
     static async generateSaleCode() {
         const [result] = await pool.query(
             "SELECT IFNULL(MAX(CAST(SUBSTRING(sale_code, 5) AS UNSIGNED)), 0) AS max_id FROM sales"
@@ -113,7 +107,6 @@ export default class SalesModel {
         return `SAL-${String(nextId).padStart(5, "0")}`;
     }
 
-    // Get sales statistics
     static async getSalesStats(period = 'today') {
         let dateCondition = '';
         
