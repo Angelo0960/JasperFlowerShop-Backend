@@ -343,3 +343,72 @@ export const exportReportAsCSV = async (req, res) => {
     });
   }
 };
+
+export const getReportById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await ReportModel.ensureReportsTable();
+    
+    const [reports] = await pool.query(
+      "SELECT * FROM reports WHERE id = ?",
+      [id]
+    );
+    
+    if (reports.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Report not found"
+      });
+    }
+    
+    const report = reports[0];
+    
+    
+    report.report_data = report.report_data ? JSON.parse(report.report_data) : null;
+    report.summary_data = report.summary_data ? JSON.parse(report.summary_data) : null;
+    
+    res.json({
+      success: true,
+      data: report
+    });
+  } catch (error) {
+    console.error("Error getting report by ID:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get report",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+export const deleteReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await ReportModel.ensureReportsTable();
+    
+    const [result] = await pool.query(
+      "DELETE FROM reports WHERE id = ?",
+      [id]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Report not found"
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: "Report deleted successfully"
+    });
+  } catch (error) {
+    console.error("Error deleting report:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete report"
+    });
+  }
+};
