@@ -59,3 +59,66 @@ export const listSales = async (req, res) => {
   }
 };
 
+
+export const getSalesStats = async (req, res) => {
+  try {
+    const { period = 'today' } = req.query;
+    
+    const stats = await SalesModel.getSalesStats(period);
+    
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error("Error getting sales stats:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get sales statistics"
+    });
+  }
+};
+
+export const testSalesEndpoint = async (req, res) => {
+  try {
+    
+    const [tableCheck] = await pool.query(`
+      SELECT COUNT(*) as table_exists 
+      FROM information_schema.tables 
+      WHERE table_schema = DATABASE() 
+      AND table_name = 'sales'
+    `);
+    
+    const salesExists = tableCheck[0].table_exists > 0;
+    
+    
+    let salesCount = 0;
+    if (salesExists) {
+      const [countResult] = await pool.query("SELECT COUNT(*) as count FROM sales");
+      salesCount = countResult[0].count;
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        sales_table_exists: salesExists,
+        sales_count: salesCount,
+        endpoints: {
+          daily_report: "/sales/reports/daily",
+          weekly_report: "/sales/reports/weekly",
+          monthly_report: "/sales/reports/monthly",
+          export: "/sales/export?range=daily|weekly|monthly",
+          stats: "/sales/stats?period=today|week|month"
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Test endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+
