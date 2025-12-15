@@ -15,3 +15,6 @@ router.post('/custom', generateCustomReport);
 router.get('/', getSavedReports);
 router.get('/:id', getReportById);
 router.delete('/:id', deleteReport);
+router.get('/:id/export', exportReportAsCSV); 
+
+export default router;
