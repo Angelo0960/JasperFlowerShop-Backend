@@ -103,6 +103,137 @@ export default class OrderModel {
         };
     }
 
+        static async updateStatus(id, status) {
+        const validStatuses = ['pending', 'in-progress', 'completed', 'cancelled'];
+        
+        if (!validStatuses.includes(status)) {
+            throw new Error(`Invalid status: ${status}`);
+        }
+        
+        const connection = await pool.getConnection(); 
+        
+        try {
+            await connection.beginTransaction(); 
+            
+        
+            const [existing] = await connection.query("SELECT * FROM orders WHERE id = ?", [id]);
+            
+            if (existing.length === 0) {
+                await connection.rollback(); 
+                throw new Error('Order not found');
+            }
+            
+            const currentOrder = existing[0];
+            
+            
+            const [result] = await connection.query(
+                "UPDATE orders SET status = ? WHERE id = ?",
+                [status, id]
+            );
+            
+          
+            if (status === 'completed' && currentOrder.status !== 'completed') {
+             
+                await this.createSaleFromOrder(id, connection, currentOrder);
+            }
+            
+            await connection.commit(); 
+            
+            return { 
+                success: true,
+                affectedRows: result.affectedRows,
+                changedRows: result.changedRows || 0
+            };
+        } catch (error) {
+            await connection.rollback(); 
+            console.error("Update status error:", error);
+            throw error;
+        } finally {
+            connection.release(); 
+        }
+    }
+
+       static async createSaleFromOrder(orderId, connection, orderData) {
+    try {
+        const order = orderData;
+        
+        
+        const sale_code = await this.generateSaleCode(connection);
+        
+        
+        const orderDate = new Date(order.created_at);
+        
+       
+        const year = orderDate.getFullYear();
+        const month = String(orderDate.getMonth() + 1).padStart(2, '0');
+        const day = String(orderDate.getDate()).padStart(2, '0');
+        
+        const sale_date = `${year}-${month}-${day}`; 
+        
+        const hours = String(orderDate.getHours()).padStart(2, '0');
+        const minutes = String(orderDate.getMinutes()).padStart(2, '0');
+        const seconds = String(orderDate.getSeconds()).padStart(2, '0');
+        
+        const sale_time = `${hours}:${minutes}:${seconds}`; 
+  
+        
+        console.log(`📊 Creating sale for order ${order.order_code} on date: ${sale_date} ${sale_time}`);
+        
+        const [result] = await connection.query(
+            `INSERT INTO sales (
+                sale_code, 
+                order_id, 
+                customer_name,
+                staff_name,
+                payment_method,
+                items, 
+                items_count, 
+                total_amount,
+                tax_amount,
+                grand_total,
+                cash_received,
+                change_amount,
+                staff_id, 
+                sale_date,  
+                sale_time   
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+            [
+                sale_code, 
+                orderId, 
+                order.customer_name,
+                order.staff_name || '',
+                order.payment_method || 'cash',
+                JSON.stringify(order.items), 
+                order.items_count, 
+                order.total_amount,
+                order.tax_amount || 0,
+                order.grand_total || order.total_amount,
+                order.cash_received || 0,
+                order.change_amount || 0,
+                1,  
+                sale_date,  
+                sale_time   
+            ]
+        );
+
+        if (result.affectedRows === 0) {
+             throw new Error("Sale insertion failed, 0 rows affected.");
+        }
+        
+        return {
+            id: result.insertId,
+            sale_code,
+            order_id: orderId,
+            sale_date,
+            sale_time
+        };
+    } catch (error) {
+        console.error("Error creating sale from order:", error);
+        throw error;
+    }
+}
+
+
         static async createOrder(orderData) {
         const connection = await pool.getConnection();
         
@@ -188,6 +319,45 @@ export default class OrderModel {
             ...sale,
             items: typeof sale.items === 'string' ? JSON.parse(sale.items) : sale.items
         }));
+    }
+
+        static async getOrderStats(period = 'today') {
+        let dateCondition = '';
+        
+        switch(period) {
+            case 'today':
+                dateCondition = "DATE(created_at) = CURDATE()";
+                break;
+            case 'week':
+                dateCondition = "YEARWEEK(created_at) = YEARWEEK(CURDATE())";
+                break;
+            case 'month':
+                dateCondition = "MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())";
+                break;
+            default:
+                dateCondition = "1=1";
+        }
+        
+        const [result] = await pool.query(`
+            SELECT 
+                COUNT(*) as total_orders,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_orders,
+                SUM(CASE WHEN status = 'in-progress' THEN 1 ELSE 0 END) as in_progress_orders,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_orders,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_orders,
+                SUM(CASE WHEN status = 'completed' THEN total_amount ELSE 0 END) as total_revenue
+            FROM orders
+            WHERE ${dateCondition}
+        `);
+        
+        return result[0] || {
+            total_orders: 0,
+            pending_orders: 0,
+            in_progress_orders: 0,
+            completed_orders: 0,
+            cancelled_orders: 0,
+            total_revenue: 0
+        };
     }
 
     static async getTodayOrderStats() {
