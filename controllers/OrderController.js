@@ -193,3 +193,49 @@ export const getOrderSales = async (req, res) => {
     });
   }
 };
+
+export const getOrderStats = async (req, res) => {
+  try {
+    const { period = 'today' } = req.query;
+    console.log(`📊 Getting order stats for period: ${period}`);
+    
+    
+    const stats = await OrderModel.getOrderStats(period);
+    
+    console.log("📈 Stats from database:", stats);
+    
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error("❌ Error getting order stats:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get order statistics"
+    });
+  }
+};
+
+
+export const getTodayOrderStats = async (req, res) => {
+  try {
+    console.log("📅 Getting today's order stats");
+    
+    
+    const stats = await OrderModel.getTodayOrderStats();
+    
+    console.log("📅 Today's stats:", stats);
+    
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error("❌ Error getting today's stats:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get today's statistics"
+    });
+  }
+};
