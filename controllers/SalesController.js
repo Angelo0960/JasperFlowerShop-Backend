@@ -122,3 +122,59 @@ export const testSalesEndpoint = async (req, res) => {
 };
 
 
+
+export const exportSales = async (req, res) => {
+  try {
+    const { range, format = 'csv', saveReport = 'false' } = req.query;
+    
+    const filters = {};
+    if (range) filters.range = range;
+    
+    const salesData = await SalesModel.getSales(filters);
+    
+    
+    if (saveReport === 'true') {
+      try {
+        await ReportModel.ensureReportsTable(); 
+        const reportName = `${range || 'all'}_sales_report_${new Date().toISOString().split('T')[0]}`;
+        const report = await SalesModel.saveToReports(salesData, range || 'daily', reportName);
+        console.log(` Report saved to database with ID: ${report.id}`);
+      } catch (saveError) {
+        console.warn(" Could not save report to database:", saveError.message);
+        
+      }
+    }
+    
+    
+    if (format === 'csv') {
+      const csvData = SalesModel.convertToCSV(salesData);
+      
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=sales_export_${new Date().toISOString().split('T')[0]}.csv`);
+      
+      res.send(csvData);
+    } else if (format === 'json') {
+      res.json({
+        success: true,
+        data: salesData,
+        summary: {
+          total_sales: salesData.reduce((sum, sale) => sum + (parseFloat(sale.total_amount) || 0), 0),
+          total_transactions: salesData.length,
+          total_items: salesData.reduce((sum, sale) => sum + (parseInt(sale.items_count) || 0), 0)
+        }
+      });
+    } else {
+      res.json({
+        success: true,
+        data: salesData
+      });
+    }
+  } catch (error) {
+    console.error("Error exporting sales:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to export sales"
+    });
+  }
+};
