@@ -1,0 +1,17 @@
+
+import express from "express";
+
+import { 
+  createOrder, 
+  listOrders, 
+  updateOrderStatus,
+  getOrderStats,
+  getTodayOrderStats,
+  debugOrders,
+  testDatabase,
+  getOrderSales  
+} from "../controllers/OrderController.js";
+
+const router = express.Router();
+
+router.post("/create", createOrder);
