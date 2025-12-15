@@ -233,6 +233,69 @@ export default class OrderModel {
     }
 }
 
+    static async generateSaleCode(connection) { 
+        try {
+     
+            const [maxResult] = await connection.query(`
+                SELECT 
+                    MAX(
+                        CASE 
+                            WHEN sale_code REGEXP '^SAL-[0-9]+$' 
+                            THEN CAST(SUBSTRING(sale_code, 5) AS DECIMAL(20, 0))
+                            ELSE 0 
+                        END
+                    ) as max_id
+                FROM sales
+                WHERE sale_code LIKE 'SAL-%'
+            `);
+           
+            let maxIdValue = maxResult[0]?.max_id;
+            
+          
+            let nextId;
+            try {
+                nextId = BigInt(maxIdValue || 0) + BigInt(1);
+            } catch (e) {
+            
+                nextId = BigInt(Date.now());
+                console.warn("⚠️ Using timestamp fallback for nextId due to BigInt error:", e.message);
+            }
+            
+            let finalCode;
+            let attempts = 0;
+            
+         
+            do {
+      
+                finalCode = `SAL-${nextId.toString().padStart(5, "0")}`;
+                
+       
+                const [checkResult] = await connection.query(
+                    "SELECT COUNT(*) as count FROM sales WHERE sale_code = ?",
+                    [finalCode]
+                );
+                
+                if (checkResult[0]?.count > 0) {
+                    nextId++;
+                } else {
+                    break; 
+                }
+                attempts++;
+            } while (attempts < 1000); 
+            
+            if (attempts >= 1000) {
+                throw new Error("Failed to generate a unique sale code after 1000 attempts.");
+            }
+            
+            return finalCode;
+        } catch (error) {
+            console.error("Error generating sale code:", error);
+         
+            const timestamp = Date.now();
+            const fallbackId = BigInt(timestamp) + BigInt(Math.floor(Math.random() * 1000));
+            throw new Error(`Critical error in sale code generation: ${error.message}. Fallback code: SAL-${fallbackId.toString()}`);
+        }
+    }
 
         static async createOrder(orderData) {
         const connection = await pool.getConnection();
