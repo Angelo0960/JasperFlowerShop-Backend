@@ -110,3 +110,42 @@ export const updateProduct = async (req, res) => {
     });
   }
 };
+
+export const deleteProduct = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    
+    
+    const product = await ProductModel.getProductById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+    
+    
+    const deleted = await ProductModel.deleteProduct(productId);
+    
+    if (!deleted) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to delete product"
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: "Product deleted successfully"
+    });
+  } catch (err) {
+    console.error("Error in deleteProduct:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to delete product" 
+    });
+  }
+};
+
+
+
