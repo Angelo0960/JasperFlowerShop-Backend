@@ -8,7 +8,6 @@ import {
   getOrderStats,
   getTodayOrderStats,
   debugOrders,
-  testDatabase,
   getOrderSales  
 } from "../controllers/OrderController.js";
 
@@ -19,3 +18,7 @@ router.get("/list", listOrders);
 router.put("/update-status/:id", updateOrderStatus);
 router.get("/stats", getOrderStats);
 router.get("/stats/today", getTodayOrderStats);
+router.get("/debug", debugOrders);
+router.get("/:id/sales", getOrderSales); 
+
+export default router;
