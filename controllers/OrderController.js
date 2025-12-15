@@ -88,3 +88,108 @@ export const listOrders = async (req, res) => {
     });
   }
 };
+
+export const updateOrderStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    console.log(`📝 PUT /orders/update-status/${id} called with status:`, status);
+
+    if (!status) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Status is required" 
+      });
+    }
+
+    
+    const existingOrder = await OrderModel.getOrderById(id);
+    
+    if (!existingOrder) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Order not found" 
+      });
+    }
+    
+    const oldStatus = existingOrder.status;
+    const orderCode = existingOrder.order_code;
+    
+    console.log(`📋 Order ${orderCode} (ID: ${id}) current status: ${oldStatus}`);
+    
+    
+    const result = await OrderModel.updateStatus(id, status);
+    
+    console.log(`✅ Order ${orderCode} (ID: ${id}) status updated from ${oldStatus} to ${status}`);
+    console.log(`📊 Update affected rows:`, result.affectedRows);
+    
+    res.json({ 
+      success: true, 
+      message: `Order ${orderCode} status updated from ${oldStatus} to ${status} successfully`,
+      data: {
+        id: parseInt(id),
+        order_code: orderCode,
+        old_status: oldStatus,
+        new_status: status
+      }
+    });
+    
+  } catch (err) {
+    console.error("❌ Update order status error:", err);
+    
+    res.status(500).json({ 
+      success: false, 
+      message: err.message || "Failed to update order status" 
+    });
+  }
+};
+
+
+export const getOrderSales = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`📊 Getting sales for order ID: ${id}`);
+    
+    
+    const order = await OrderModel.getOrderById(id);
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+    
+   
+    const sales = await OrderModel.getOrderSales(id);
+    
+    console.log(`📊 Found ${sales.length} sales records for order ${order.order_code}`);
+    
+    res.json({
+      success: true,
+      data: {
+        order: {
+          id: parseInt(id),
+          order_code: order.order_code,
+          status: order.status,
+          staff_name: order.staff_name,
+          payment_method: order.payment_method,
+          tax_amount: order.tax_amount,
+          grand_total: order.grand_total,
+          cash_received: order.cash_received,
+          change_amount: order.change_amount
+        },
+        sales: sales
+      }
+    });
+    
+  } catch (error) {
+    console.error("❌ Error getting order sales:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get sales records"
+    });
+  }
+};
