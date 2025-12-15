@@ -15,3 +15,5 @@ import {
 const router = express.Router();
 
 router.post("/create", createOrder);
+router.get("/list", listOrders);
+router.put("/update-status/:id", updateOrderStatus);
